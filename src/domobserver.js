@@ -34,7 +34,6 @@ export class DOMObserver {
     this.view = view
     this.handleDOMChange = handleDOMChange
     this.queue = []
-    this.flushingSoon = false
     this.observer = window.MutationObserver &&
       new window.MutationObserver(mutations => {
         for (let i = 0; i < mutations.length; i++) this.queue.push(mutations[i])
@@ -45,7 +44,7 @@ export class DOMObserver {
         if (browser.ie && browser.ie_version <= 11 && mutations.some(
           m => m.type == "childList" && m.removedNodes.length ||
                m.type == "characterData" && m.oldValue.length > m.target.nodeValue.length))
-          this.flushSoon()
+          window.setTimeout(() => this.flush(), 10)
         else
           this.flush()
       })
@@ -53,18 +52,11 @@ export class DOMObserver {
     if (useCharData) {
       this.onCharData = e => {
         this.queue.push({target: e.target, type: "characterData", oldValue: e.prevValue})
-        this.flushSoon()
+        window.setTimeout(() => this.flush(), 20)
       }
     }
     this.onSelectionChange = this.onSelectionChange.bind(this)
     this.suppressingSelectionUpdates = false
-  }
-
-  flushSoon() {
-    if (!this.flushingSoon) {
-      this.flushingSoon = true
-      window.setTimeout(() => { this.flushingSoon = false; this.flush() }, 20)
-    }
   }
 
   start() {
@@ -111,7 +103,7 @@ export class DOMObserver {
       let sel = this.view.root.getSelection()
       // Selection.isCollapsed isn't reliable on IE
       if (sel.focusNode && isEquivalentPosition(sel.focusNode, sel.focusOffset, sel.anchorNode, sel.anchorOffset))
-        return this.flushSoon()
+        window.setTimeout(() => this.flush(), 20)
     }
     this.flush()
   }
@@ -131,7 +123,7 @@ export class DOMObserver {
   }
 
   flush() {
-    if (!this.view.docView || this.flushingSoon) return
+    if (!this.view.docView) return
     let mutations = this.observer ? this.observer.takeRecords() : []
     if (this.queue.length) {
       mutations = this.queue.concat(mutations)
