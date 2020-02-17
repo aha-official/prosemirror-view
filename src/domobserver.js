@@ -44,7 +44,7 @@ export class DOMObserver {
         if (browser.ie && browser.ie_version <= 11 && mutations.some(
           m => m.type == "childList" && m.removedNodes.length ||
                m.type == "characterData" && m.oldValue.length > m.target.nodeValue.length))
-          window.setTimeout(() => this.flush(), 10)
+          this.flushSoon()
         else
           this.flush()
       })
@@ -52,11 +52,15 @@ export class DOMObserver {
     if (useCharData) {
       this.onCharData = e => {
         this.queue.push({target: e.target, type: "characterData", oldValue: e.prevValue})
-        window.setTimeout(() => this.flush(), 20)
+        this.flushSoon()
       }
     }
     this.onSelectionChange = this.onSelectionChange.bind(this)
     this.suppressingSelectionUpdates = false
+  }
+
+  flushSoon() {
+    window.setTimeout(() => { this.flush() }, 20)
   }
 
   start() {
@@ -72,7 +76,7 @@ export class DOMObserver {
       let take = this.observer.takeRecords()
       if (take.length) {
         for (let i = 0; i < take.length; i++) this.queue.push(take[i])
-        window.setTimeout(() => this.flush(), 20)
+        this.flushSoon()
       }
       this.observer.disconnect()
     }
@@ -96,15 +100,6 @@ export class DOMObserver {
   onSelectionChange() {
     if (!hasFocusAndSelection(this.view)) return
     if (this.suppressingSelectionUpdates) return selectionToDOM(this.view)
-    // Deletions on IE11 fire their events in the wrong order, giving
-    // us a selection change event before the DOM changes are
-    // reported.
-    if (browser.ie && browser.ie_version <= 11 && !this.view.state.selection.empty) {
-      let sel = this.view.root.getSelection()
-      // Selection.isCollapsed isn't reliable on IE
-      if (sel.focusNode && isEquivalentPosition(sel.focusNode, sel.focusOffset, sel.anchorNode, sel.anchorOffset))
-        window.setTimeout(() => this.flush(), 20)
-    }
     this.flush()
   }
 
